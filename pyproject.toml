@@ -14,7 +14,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
 ]
 name = "nomad-plugin-mbe"
-description = "Nomad example template"
+description = "Plugin for MBE sample growths"
 version = "0.1.0"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -77,7 +77,7 @@ select = [
     "UP",
     # isort
     "I",
-    # pylint 
+    # pylint
     "PL",
 ]
 
@@ -113,8 +113,10 @@ where = ["src"]
 [project.entry-points.'nomad.plugin']
 parser_entry_point = "nomad_plugin_mbe.parsers:parser_entry_point"
 schema_package_entry_point = "nomad_plugin_mbe.schema_packages:schema_package_entry_point"
-
 app_entry_point = "nomad_plugin_mbe.apps:app_entry_point"
+
+mbe_schema_entry_point = "nomad_plugin_mbe.schema_packages:mbe_schema_entry_point"
+mbe_parser_entry_point = "nomad_plugin_mbe.parsers:mbe_parser_entry_point"
 
 [tool.cruft]
 # Avoid updating workflow files, this leads to permissions issues
