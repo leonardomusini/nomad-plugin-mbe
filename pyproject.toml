@@ -117,6 +117,7 @@ app_entry_point = "nomad_plugin_mbe.apps:app_entry_point"
 
 mbe_schema_entry_point = "nomad_plugin_mbe.schema_packages:mbe_schema_entry_point"
 mbe_parser_entry_point = "nomad_plugin_mbe.parsers:mbe_parser_entry_point"
+mbe_app_entry_point = "nomad_plugin_mbe.apps:mbe_app_entry_point"
 
 [tool.cruft]
 # Avoid updating workflow files, this leads to permissions issues

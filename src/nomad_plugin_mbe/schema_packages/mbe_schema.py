@@ -22,6 +22,8 @@ from nomad.datamodel.data import (
     ArchiveSection,
     EntryData,
     )
+from nomad.units import ureg
+from pint import Quantity as PintQuantity
 from nomad.datamodel.metainfo.annotations import ELNAnnotation, ELNComponentEnum
 from nomad.metainfo import Section, SubSection, Package, Quantity, Datetime, MEnum
 
@@ -35,9 +37,10 @@ class User(ArchiveSection):
             properties={
                 'order': [
                     'name',
+                    'ORCID',
+                    'email',
                     'role',
                     'affiliation',
-                    'ORCID'
                 ]
             }
         )
@@ -75,8 +78,73 @@ class User(ArchiveSection):
         )
     )
 
+    email = Quantity(
+        type=str,
+        description="Email of the operator",
+        a_eln=ELNAnnotation(
+            component=ELNComponentEnum.StringEditQuantity
+        )
+    )
+
     def normalize(self, archive: 'EntryArchive', logger: 'BoundLogger') -> None:
         super().normalize(archive, logger)
+
+# ----------------------------------
+
+class CoolingDevice(ArchiveSection):
+    m_def = Section(
+        a_eln=ELNAnnotation(
+            properties={
+                'order': [
+                    'name',
+                    'model',
+                    'cooling_mode',
+                    'temperature'
+                ]
+            }
+        )
+    )
+
+    name = Quantity(
+        type=str,
+        description="Name of the cooling device in the chamber",
+        a_eln=ELNAnnotation(
+            component=ELNComponentEnum.StringEditQuantity
+        )
+    )
+
+    model = Quantity(
+        type=str,
+        description="Model of the cooling device in the chamber",
+        a_eln=ELNAnnotation(
+            component=ELNComponentEnum.StringEditQuantity
+        )
+    )
+
+    cooling_mode = Quantity(
+        type=MEnum([
+            'liquid_nitrogen',
+            'gaseous_nitrogen',
+            'water',
+            'air',
+            'other',
+            'off'
+        ]),
+        description="Mode used to cool the chamber",
+        a_eln=ELNAnnotation(
+            component=ELNComponentEnum.EnumEditQuantity
+        )
+    )
+
+    temperature = Quantity(
+        type=float,
+        unit='kelvin',
+        description="Nominal temperature of the device",
+        a_eln=ELNAnnotation(
+            component=ELNComponentEnum.NumberEditQuantity,
+            defaultDisplayUnit='kelvin'
+        )
+    )
 
 # ----------------------------------
 
@@ -87,8 +155,8 @@ class SubstrateDescription(ArchiveSection):
                 'order': [
                     'name',
                     'chemical_formula',
-                    'crystallinity',
-                    'orientation',
+                    'crystalline_structure',
+                    'crystal_orientation',
                     'doping',
                     'diameter',
                     'thickness',
@@ -146,7 +214,7 @@ class SubstrateDescription(ArchiveSection):
         )
     )
 
-    orientation = Quantity(
+    crystal_orientation = Quantity(
         type=str,
         description="Crystallographic direction of the material",
         a_eln=ELNAnnotation(
@@ -157,7 +225,8 @@ class SubstrateDescription(ArchiveSection):
     flat_convention = Quantity(
         type=MEnum([
             'EJ',
-            'US'
+            'US',
+            ''
         ]),
         description="Flat convention of the wafer",
         a_eln=ELNAnnotation(
@@ -181,14 +250,14 @@ class SubstrateDescription(ArchiveSection):
         )
     )
 
-    crystallinity = Quantity(
+    crystalline_structure = Quantity(
         type=MEnum([
             'single crystal',
             'polycrystal',
-            'quasi crystal',
+            'semi-crystal',
             'amorphous crystal'
         ]),
-        description="Crystallinity type of the material",
+        description="Crystalline structure type of the material",
         a_eln=ELNAnnotation(
             component=ELNComponentEnum.EnumEditQuantity
         )
@@ -199,43 +268,54 @@ class SubstrateDescription(ArchiveSection):
 
 # ----------------------------------
 
-class LayerStepDescription(ArchiveSection):
+class LayerDescription(ArchiveSection):
 
     m_def = Section(
         a_eln=ELNAnnotation(
             properties={
                 'order': [
+                    'name',
                     'chemical_formula',
-                    'description',
+                    'doping',
                     'thickness',
                     'growth_temperature',
                     'growth_time',
                     'growth_rate',
                     'alloy_fraction',
-                    'rotation_velocity',
-                    'evaporation_rate_Ga1',
-                    'evaporation_rate_Ga2',
-                    'evaporation_rate_Al',
-                    'evaporation_rate_In',
+                    'rotational_frequency',
+                    'partial_growth_rate_Ga1',
+                    'partial_growth_rate_Ga2',
+                    'partial_growth_rate_Al',
+                    'partial_growth_rate_In',
                     'partial_pressure'
                 ]
             }
         )
     )
 
-    chemical_formula = Quantity(
+    name = Quantity(
         type=str,
-        description="Chemical formula of the material or step name",
+        description="Name of the layer",
         a_eln=ELNAnnotation(
             component=ELNComponentEnum.StringEditQuantity
         )
     )
 
-    description = Quantity(
+    chemical_formula = Quantity(
         type=str,
-        description="Information about the layer",
+        description="Chemical formula of the material",
         a_eln=ELNAnnotation(
-            component=ELNComponentEnum.RichTextEditQuantity
+            component=ELNComponentEnum.StringEditQuantity
+        )
+    )
+
+    doping = Quantity(
+        type=float,
+        unit='cm**-3',
+        description="Doping level of the layer",
+        a_eln=ELNAnnotation(
+            component=ELNComponentEnum.NumberEditQuantity,
+            defaultDisplayUnit='cm**-3'
         )
     )
 
@@ -287,50 +367,20 @@ class LayerStepDescription(ArchiveSection):
         )
     )
 
-    rotation_velocity = Quantity(
+    rotational_frequency = Quantity(
         type=float,
         unit='rpm',
-        description="Rotation velocity of the sample during the deposition of the current layer",
+        description="Rotational frequency of the sample during the deposition of the current layer",
         a_eln=ELNAnnotation(
             component=ELNComponentEnum.NumberEditQuantity,
             defaultDisplayUnit='rpm'
         )
     )
 
-    evaporation_rate_Ga1 = Quantity(
+    partial_growth_rate_In = Quantity(
         type=float,
         unit='angstrom/s',
-        description="Evaporation rate of first Gallium cell during the deposition of the current layer",
-        a_eln=ELNAnnotation(
-            component=ELNComponentEnum.NumberEditQuantity,
-            defaultDisplayUnit='angstrom/s'
-        )
-    )
-
-    evaporation_rate_Ga2 = Quantity(
-        type=float,
-        unit='angstrom/s',
-        description="Evaporation rate of second Gallium cell during the deposition of the current layer",
-        a_eln=ELNAnnotation(
-            component=ELNComponentEnum.NumberEditQuantity,
-            defaultDisplayUnit='angstrom/s'
-        )
-    )
-
-    evaporation_rate_Al = Quantity(
-        type=float,
-        unit='angstrom/s',
-        description="Evaporation rate of Alluminum cell during the deposition of the current layer",
-        a_eln=ELNAnnotation(
-            component=ELNComponentEnum.NumberEditQuantity,
-            defaultDisplayUnit='angstrom/s'
-        )
-    )
-
-    evaporation_rate_In = Quantity(
-        type=float,
-        unit='angstrom/s',
-        description="Evaporation rate of Indium cell during the deposition of the current layer",
+        description="Partial growth rate of Indium cell during the deposition of the current layer",
         a_eln=ELNAnnotation(
             component=ELNComponentEnum.NumberEditQuantity,
             defaultDisplayUnit='angstrom/s'
@@ -358,11 +408,20 @@ class SensorDescription(ArchiveSection):
         a_eln=ELNAnnotation(
             properties={
                 'order': [
+                    'name'
                     'model',
                     'measurement',
-                    'wavelength'
+                    'value'
                 ]
             }
+        )
+    )
+
+    name = Quantity(
+        type=str,
+        description="Name of the sensor in the chamber",
+        a_eln=ELNAnnotation(
+            component=ELNComponentEnum.StringEditQuantity
         )
     )
 
@@ -382,18 +441,39 @@ class SensorDescription(ArchiveSection):
         )
     )
 
-    wavelength = Quantity(
+    value = Quantity(
         type=float,
-        unit='nm',
-        description="Reading wavelength of the sensor",
+        description="Nominal value of the signal",
+        unit='',
         a_eln=ELNAnnotation(
             component=ELNComponentEnum.NumberEditQuantity,
-            defaultDisplayUnit='nm'
+            defaultDisplayUnit='mbar'
         )
     )
 
     def normalize(self, archive: 'EntryArchive', logger: 'BoundLogger') -> None:
         super().normalize(archive, logger)
+
+        # Dynamically assign unit based on measurement type
+        if self.measurement and hasattr(self, 'value') and self.value is not None:
+            try:
+                unit = None
+                m = self.measurement.lower()
+                if m == 'rate_temperature':
+                    unit = 'kelvin'
+                elif m == 'pressure':
+                    unit = 'mbar'
+                elif m == 'emissivity_temperature':
+                    unit = 'percent'
+                elif m == 'reflectivity':
+                    unit == 'percent'
+
+                if unit:
+                    self.value = self.value * ureg(unit)
+                else:
+                    logger.warning(f"Unknown measurement type '{self.measurement}', unit not assigned.")
+            except Exception as e:
+                logger.error(f"Could not assign unit to value: {e}")
 
 # ----------------------------------
 
@@ -403,11 +483,20 @@ class GaugeDescription(ArchiveSection):
         a_eln=ELNAnnotation(
             properties={
                 'order': [
+                    'name',
                     'model',
                     'measurement',
                     'value'
                 ]
             }
+        )
+    )
+
+    name = Quantity(
+        type=str,
+        description="Name of the sensor in the chamber",
+        a_eln=ELNAnnotation(
+            component=ELNComponentEnum.StringEditQuantity
         )
     )
 
@@ -476,10 +565,11 @@ class SampleGrowingEnvironment(ArchiveSection):
         type=str,
         description="Type of growing chamber",
         a_eln=ELNAnnotation(
-            component=ELNComponentEnum.RichTextEditQuantity
+            component=ELNComponentEnum.StringEditQuantity
         )
     )
 
+    cooling_device = SubSection(section_def=CoolingDevice)
     gauge = SubSection(section_def=GaugeDescription, repeats=True)
     sensor = SubSection(section_def=SensorDescription, repeats=True)
 
@@ -488,7 +578,24 @@ class SampleGrowingEnvironment(ArchiveSection):
 
 # ----------------------------------
 
-class SampleReceipt(ArchiveSection):
+class Instruments(ArchiveSection):
+
+    m_def = Section(
+        a_eln=ELNAnnotation(
+            properties={
+                'order': []
+            }
+        )
+    )
+
+    chamber = SubSection(section_def=SampleGrowingEnvironment)
+
+    def normalize(self, archive: 'EntryArchive', logger: 'BoundLogger') -> None:
+        super().normalize(archive, logger)
+
+# ----------------------------------
+
+class SampleRecipe(ArchiveSection):
 
     m_def = Section(
         a_eln=ELNAnnotation(
@@ -511,16 +618,16 @@ class SampleReceipt(ArchiveSection):
 
     thickness = Quantity(
         type=float,
-        unit='nm',
+        unit='µm',
         description="Total thickness of the sample",
         a_eln=ELNAnnotation(
             component=ELNComponentEnum.NumberEditQuantity,
-            defaultDisplayUnit='nm'
+            defaultDisplayUnit='µm'
         )
     )
 
-    layer = SubSection(section_def=LayerStepDescription, repeats=True)
-    chamber = SubSection(section_def=SampleGrowingEnvironment)
+    substrate = SubSection(section_def=SubstrateDescription)
+    layer = SubSection(section_def=LayerDescription, repeats=True)
 
     def normalize(self, archive: 'EntryArchive', logger: 'BoundLogger') -> None:
         super().normalize(archive, logger)
@@ -564,7 +671,7 @@ class SampleMBESynthesis(EntryData):
         type=str,
         description="Growing technique involved",
         a_eln=ELNAnnotation(
-            component=ELNComponentEnum.RichTextEditQuantity
+            component=ELNComponentEnum.StringEditQuantity
         )
     )
 
@@ -595,8 +702,8 @@ class SampleMBESynthesis(EntryData):
     )
 
     user = SubSection(section_def=User, repeats=True)
-    sample = SubSection(section_def=SampleReceipt)
-    substrate = SubSection(section_def=SubstrateDescription)
+    instrument = SubSection(section_def=Instruments, repeats=True)
+    sample = SubSection(section_def=SampleRecipe)
 
     def normalize(self, archive: 'EntryArchive', logger: 'BoundLogger') -> None:
         super().normalize(archive, logger)

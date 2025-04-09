@@ -19,12 +19,12 @@ from structlog.stdlib import (
 
 import h5py
 from datetime import datetime
-import numpy as np
 from nomad.parsing import MatchingParser
 from nomad.datamodel import EntryArchive
 from nomad_plugin_mbe.schema_packages.mbe_schema import (
-    SampleMBESynthesis, SampleReceipt, SubstrateDescription, User,
-    SampleGrowingEnvironment, LayerStepDescription, GaugeDescription, SensorDescription
+    SampleMBESynthesis, SampleRecipe, SubstrateDescription, User,
+    SampleGrowingEnvironment, LayerDescription, SensorDescription,
+    Instruments, CoolingDevice
 )
 
 
@@ -60,10 +60,11 @@ class HDF5MBEParser(MatchingParser):
             # Create main metadata structure
             archive.data = SampleMBESynthesis()
             growth_info = archive.data
+            entry = hdf["entry"]
 
             # Extract general metadata
             growth_info.definition = hdf["entry/definition"][()].decode("utf-8") if "definition" in hdf["entry"] else None
-            growth_info.title = hdf["entry/title"][()].decode("utf-8") if "title" in hdf["entry"] else "Unknown Growth Title"
+            growth_info.title = hdf["entry/title"][()].decode("utf-8") if "title" in hdf["entry"] else None
             growth_info.growth_description = hdf["entry/experiment_description"][()].decode("utf-8") if "experiment_description" in hdf["entry"] else "No description provided"
 
             # Extract timestamps
@@ -72,86 +73,99 @@ class HDF5MBEParser(MatchingParser):
             growth_info.duration = hdf["entry/duration"][()] if "duration" in hdf["entry"] else None
 
             # Extract user information
-            if "user" in hdf["entry"]:
-                user_data = hdf["entry/user"]
-                user = growth_info.m_create(User)
-                user.name = user_data["name"][()].decode("utf-8") if "name" in user_data else None
-                user.role = user_data["role"][()].decode("utf-8") if "role" in user_data else None
-                user.affiliation = user_data["affiliation"][()].decode("utf-8") if "affiliation" in user_data else None
-                user.ORCID = user_data["ORCID"][()].decode("utf-8") if "ORCID" in user_data else None
+            for user_name in ["user", "user_1","user_2"]:
+                if user_name in hdf["entry"]:
+                    user_data = entry[user_name]
+                    user = growth_info.m_create(User)
 
-            # Extract substrate details
-            if "substrate" in hdf["entry"]:
-                substrate_data = hdf["entry/substrate"]
-                substrate = growth_info.m_create(SubstrateDescription)
+                    user.name = user_data["name"][()].decode("utf-8") if "name" in user_data else None
+                    user.email = user_data["email"][()].decode("utf-8") if "email" in user_data else None
+                    user.role = user_data["role"][()].decode("utf-8") if "role" in user_data else None
+                    user.affiliation = user_data["affiliation"][()].decode("utf-8") if "affiliation" in user_data else None
+                    user.ORCID = user_data["ORCID"][()].decode("utf-8") if "ORCID" in user_data else None
 
-                substrate.name = substrate_data["name"][()].decode("utf-8") if "name" in substrate_data else None
-                substrate.chemical_formula = substrate_data["chemical_formula"][()].decode("utf-8") if "chemical_formula" in substrate_data else None
-                substrate.crystallinity = substrate_data["cristallinity"][()].decode("utf-8") if "cristallinity" in substrate_data else None
-                substrate.orientation = substrate_data["sample_orientation"][()].decode("utf-8") if "sample_orientation" in substrate_data else None
-                substrate.doping = substrate_data["doping"][()].decode("utf-8") if "doping" in substrate_data else None
-                substrate.diameter = substrate_data["diameter"][()] if "diameter" in substrate_data else None
-                substrate.thickness = substrate_data["thickness"][()] if "thickness" in substrate_data else None
-                substrate.area = substrate_data["area"][()] if "area" in substrate_data else None
-                substrate.flat_convention = substrate_data["flat_convention"][()].decode("utf-8") if "flat_convention" in substrate_data else None
-                substrate.holder = substrate_data["holder"][()].decode("utf-8") if "holder" in substrate_data else None
-
-            # Extract sample receipt
-            if "sample" in hdf["entry"]:
-                sample_data = hdf["entry/sample"]
-                sample = growth_info.m_create(SampleReceipt)
-
-                sample.name = sample_data["name"][()].decode("utf-8") if "name" in sample_data else None
-                sample.thickness = sample_data["thickness"][()] if "thickness" in sample_data else None
+            # Extract apparatus information
+            if "instrument" in hdf["entry"]:
+                instrument_data = hdf["entry/instrument"]
+                instrument = growth_info.m_create(Instruments)
 
                 # Extract chamber information
-                if "chamber" in sample_data:
-                    chamber_data = sample_data["chamber"]
-                    chamber = sample.m_create(SampleGrowingEnvironment)
+                if "chamber" in hdf["entry/instrument"]:
+                    chamber_data = hdf["entry/instrument/chamber"]
+                    chamber = instrument.m_create(SampleGrowingEnvironment)
 
                     chamber.model = chamber_data["name"][()].decode("utf-8") if "name" in chamber_data else None
                     chamber.type = chamber_data["type"][()].decode("utf-8") if "type" in chamber_data else None
                     chamber.description = chamber_data["description"][()].decode("utf-8") if "description" in chamber_data else None
 
-                    # Extract gauges
-                    if "ion_gauge" in chamber_data:
-                        gauge_data = chamber_data["ion_gauge"]
-                        gauge = chamber.m_create(GaugeDescription)
-                        gauge.model = gauge_data["name"][()].decode("utf-8") if "name" in gauge_data else None
-                        gauge.measurement = gauge_data["measurement"][()].decode("utf-8") if "measurement" in gauge_data else None
-                        gauge.value = gauge_data["value"][()] if "value" in gauge_data else None
+                    if "cooling_device" in instrument_data:
+                        device_data = hdf["entry/instrument/cooling_device"]
+                        device = chamber.m_create(CoolingDevice)
+
+                        device.name = device_data["name"][()].decode("utf-8") if "name" in device_data else None
+                        device.model = device_data["model"][()].decode("utf-8") if "model" in device_data else None
+                        device.cooling_mode = device_data["cooling_mode"][()].decode("utf-8") if "cooling_mode" in device_data else None
+                        device.temperature = device_data["temperature"][()] if "temperature" in device_data else None
 
                     # Extract sensors (pyrometers, reflectometers)
-                    for sensor_name in ["pyrometer_1", "pyrometer_2", "reflectometer_1", "reflectometer_2"]:
+                    for sensor_name in ["sensor_1", "sensor_2", "sensor_3", "sensor_4", "sensor_5"]:
                         if sensor_name in chamber_data:
                             sensor_data = chamber_data[sensor_name]
                             sensor = chamber.m_create(SensorDescription)
 
-                            sensor.model = sensor_data["name"][()].decode("utf-8") if "name" in sensor_data else None
+                            sensor.name = sensor_data["name"][()].decode("utf-8") if "name" in sensor_data else None
+                            sensor.model = sensor_data["model"][()].decode("utf-8") if "model" in sensor_data else None
                             sensor.measurement = sensor_data["measurement"][()].decode("utf-8") if "measurement" in sensor_data else None
-                            #sensor.wavelength = sensor_data["wavelength"][()].decode("utf-8") if "wavelength" in sensor_data else None
+                            if sensor.name == "Ion Gauge":
+                                sensor.value = sensor_data["value"][()] if "value" in sensor_data else None
 
-            # Extract growth layers
-            layer_index = 1
-            while f"layer{layer_index}" in hdf["entry/sample"]:
-                layer_data = hdf[f"entry/sample/layer{layer_index}"]
-                layer = sample.m_create(LayerStepDescription)
+            # Extract sample recipe
+            if "sample" in hdf["entry"]:
+                sample_data = hdf["entry/sample"]
+                sample = growth_info.m_create(SampleRecipe)
 
-                layer.chemical_formula = layer_data["chemical_formula"][()].decode("utf-8") if "chemical_formula" in layer_data else None
-                layer.alloy_fraction = layer_data["alloy_fraction"][()] if "alloy_fraction" in layer_data else None
-                layer.thickness = layer_data["thickness"][()] if "thickness" in layer_data else None
-                layer.growth_temperature = layer_data["growth_temperature"][()] if "growth_temperature" in layer_data else None
-                layer.growth_time = layer_data["growth_time"][()] if "growth_time" in layer_data else None
-                layer.growth_rate = layer_data["growth_rate"][()] if "growth_rate" in layer_data else None
-                layer.rotation_velocity = layer_data["rotation_velocity"][()] if "rotation_velocity" in layer_data else None
-                layer.partial_pressure = layer_data["partial_pressure"][()] if "partial_pressure" in layer_data else None
+                sample.name = sample_data["name"][()].decode("utf-8") if "name" in sample_data else None
+                sample.thickness = sample_data["thickness"][()] if "thickness" in sample_data else None
 
-                # Evaporation rates
-                layer.evaporation_rate_Ga1 = layer_data["evap_rate_Ga1"][()] if "evap_rate_Ga1" in layer_data else None
-                layer.evaporation_rate_Ga2 = layer_data["evap_rate_Ga2"][()] if "evap_rate_Ga2" in layer_data else None
-                layer.evaporation_rate_Al = layer_data["evap_rate_Al"][()] if "evap_rate_Al" in layer_data else None
-                layer.evaporation_rate_In = layer_data["evap_rate_In"][()] if "evap_rate_In" in layer_data else None
+                # Extract substrate details
+                if "substrate" in hdf["entry/sample"]:
+                    substrate_data = hdf["entry/sample/substrate"]
+                    substrate = sample.m_create(SubstrateDescription)
 
-                layer_index += 1
+                    substrate.name = substrate_data["name"][()].decode("utf-8") if "name" in substrate_data else None
+                    substrate.chemical_formula = substrate_data["chemical_formula"][()].decode("utf-8") if "chemical_formula" in substrate_data else None
+                    substrate.crystalline_structure = substrate_data["crystalline_structure"][()].decode("utf-8") if "crystalline_structure" in substrate_data else None
+                    substrate.crystal_orientation = substrate_data["crystal_orientation"][()].decode("utf-8") if "crystal_orientation" in substrate_data else None
+                    substrate.doping = substrate_data["doping"][()].decode("utf-8") if "doping" in substrate_data else None
+                    substrate.diameter = substrate_data["diameter"][()] if "diameter" in substrate_data else None
+                    substrate.thickness = substrate_data["thickness"][()] if "thickness" in substrate_data else None
+                    substrate.area = substrate_data["area"][()] if "area" in substrate_data else None
+                    substrate.flat_convention = substrate_data["flat_convention"][()].decode("utf-8") if "flat_convention" in substrate_data else None
+                    substrate.holder = substrate_data["holder"][()].decode("utf-8") if "holder" in substrate_data else None
+
+                # Extract growth layers
+                layer_index = 1
+                while f"layer{layer_index:02d}" in sample_data:
+                    layer_data = hdf[f"entry/sample/layer{layer_index:02d}"]
+                    layer = sample.m_create(LayerDescription)
+
+                    layer.name = layer_data["name"][()].decode("utf-8") if "name" in layer_data else None
+                    layer.chemical_formula = layer_data["chemical_formula"][()].decode("utf-8") if "chemical_formula" in layer_data else None
+                    layer.doping = layer_data["doping"][()].decode("utf-8") if "doping" in layer_data else None
+                    layer.alloy_fraction = layer_data["alloy_fraction"][()] if "alloy_fraction" in layer_data else None
+                    layer.thickness = layer_data["thickness"][()] if "thickness" in layer_data else None
+                    layer.growth_temperature = layer_data["growth_temperature"][()] if "growth_temperature" in layer_data else None
+                    layer.growth_time = layer_data["growth_time"][()] if "growth_time" in layer_data else None
+                    layer.growth_rate = layer_data["growth_rate"][()] if "growth_rate" in layer_data else None
+                    layer.rotational_frequency = layer_data["rotational_frequency"][()] if "rotational_frequency" in layer_data else None
+                    layer.partial_pressure = layer_data["partial_pressure"][()] if "partial_pressure" in layer_data else None
+
+                    # Partial growth rates
+                    layer.partial_growth_rate_Ga1 = layer_data["partial_growth_rate_Ga1"][()] if "partial_growth_rate_Ga1" in layer_data else None
+                    layer.partial_growth_rate_Ga2 = layer_data["partial_growth_rate_Ga2"][()] if "partial_growth_rate_Ga2" in layer_data else None
+                    layer.partial_growth_rate_Al = layer_data["partial_growth_rate_Al"][()] if "partial_growth_rate_Al" in layer_data else None
+                    layer.partial_growth_rate_In = layer_data["partial_growth_rate_In"][()] if "partial_growth_rate_In" in layer_data else None
+
+                    layer_index += 1
 
             logger.info("HDF5 file successfully parsed into NOMAD schema.")
