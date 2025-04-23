@@ -22,8 +22,9 @@ from nomad.datamodel.data import (
     ArchiveSection,
     EntryData,
     )
+
+import re
 from nomad.units import ureg
-from pint import Quantity as PintQuantity
 from nomad.datamodel.metainfo.annotations import ELNAnnotation, ELNComponentEnum
 from nomad.metainfo import Section, SubSection, Package, Quantity, Datetime, MEnum
 
@@ -139,12 +140,96 @@ class CoolingDevice(ArchiveSection):
     temperature = Quantity(
         type=float,
         unit='kelvin',
-        description="Nominal temperature of the device",
+        description="Nominal temperature of the apparatus",
         a_eln=ELNAnnotation(
             component=ELNComponentEnum.NumberEditQuantity,
             defaultDisplayUnit='kelvin'
         )
     )
+
+    def normalize(self, archive: 'EntryArchive', logger: 'BoundLogger') -> None:
+        super().normalize(archive, logger)
+
+# ----------------------------------
+
+class MaterialSource(ArchiveSection):
+    m_def = Section(
+        a_eln=ELNAnnotation(
+            properties={
+                'order': [
+                    'name',
+                    'model',
+                    'type',
+                    'shutter_status',
+                    'partial_growth_rate',
+                    'partial_pressure'
+
+                ]
+            }
+        )
+    )
+
+    name = Quantity(
+        type=str,
+        description="Name of the material source device in the chamber",
+        a_eln=ELNAnnotation(
+            component=ELNComponentEnum.StringEditQuantity
+        )
+    )
+
+    model = Quantity(
+        type=str,
+        description="Model of the material source device in the chamber",
+        a_eln=ELNAnnotation(
+            component=ELNComponentEnum.StringEditQuantity
+        )
+    )
+
+    type = Quantity(
+        type=MEnum([
+            'effusion_cell',
+            'cracker_cell',
+            'filament',
+        ]),
+        description="Type of material source used in the chamber",
+        a_eln=ELNAnnotation(
+            component=ELNComponentEnum.EnumEditQuantity
+        )
+    )
+
+    shutter_status = Quantity(
+        type=MEnum([
+            'open',
+            'closed',
+        ]),
+        description="Status of the shutter during the deposition of the current layer",
+        a_eln=ELNAnnotation(
+            component=ELNComponentEnum.EnumEditQuantity
+        )
+    )
+
+    partial_growth_rate = Quantity(
+        type=float,
+        unit='angstrom/s',
+        description="Partial growth rate of the cell during the deposition of the current layer",
+        a_eln=ELNAnnotation(
+            component=ELNComponentEnum.NumberEditQuantity,
+            defaultDisplayUnit='angstrom/s'
+        )
+    )
+
+    partial_pressure = Quantity(
+        type=float,
+        unit='torr',
+        description="Partial pressure of the cell during the deposition of the current layer",
+        a_eln=ELNAnnotation(
+            component=ELNComponentEnum.NumberEditQuantity,
+            defaultDisplayUnit='torr'
+        )
+    )
+
+    def normalize(self, archive: 'EntryArchive', logger: 'BoundLogger') -> None:
+        super().normalize(archive, logger)
 
 # ----------------------------------
 
@@ -236,7 +321,7 @@ class SubstrateDescription(ArchiveSection):
 
     doping = Quantity(
         type=str,
-        description="Doping type and level of the substrate (e.g., p+, n, SI)",
+        description="Doping type and level of the substrate",
         a_eln=ELNAnnotation(
             component=ELNComponentEnum.StringEditQuantity
         )
@@ -282,12 +367,7 @@ class LayerDescription(ArchiveSection):
                     'growth_time',
                     'growth_rate',
                     'alloy_fraction',
-                    'rotational_frequency',
-                    'partial_growth_rate_Ga1',
-                    'partial_growth_rate_Ga2',
-                    'partial_growth_rate_Al',
-                    'partial_growth_rate_In',
-                    'partial_pressure'
+                    'rotational_frequency'
                 ]
             }
         )
@@ -303,7 +383,7 @@ class LayerDescription(ArchiveSection):
 
     chemical_formula = Quantity(
         type=str,
-        description="Chemical formula of the material",
+        description="Chemical composition of the layer",
         a_eln=ELNAnnotation(
             component=ELNComponentEnum.StringEditQuantity
         )
@@ -311,11 +391,11 @@ class LayerDescription(ArchiveSection):
 
     doping = Quantity(
         type=float,
-        unit='cm**-3',
+        unit='1 / cm ** 3',
         description="Doping level of the layer",
         a_eln=ELNAnnotation(
             component=ELNComponentEnum.NumberEditQuantity,
-            defaultDisplayUnit='cm**-3'
+            defaultDisplayUnit='1/ cm ** 3'
         )
     )
 
@@ -377,25 +457,7 @@ class LayerDescription(ArchiveSection):
         )
     )
 
-    partial_growth_rate_In = Quantity(
-        type=float,
-        unit='angstrom/s',
-        description="Partial growth rate of Indium cell during the deposition of the current layer",
-        a_eln=ELNAnnotation(
-            component=ELNComponentEnum.NumberEditQuantity,
-            defaultDisplayUnit='angstrom/s'
-        )
-    )
-
-    partial_pressure = Quantity(
-        type=float,
-        unit='torr',
-        description="Partial pressure of Arsenic cell during the deposition of the current layer",
-        a_eln=ELNAnnotation(
-            component=ELNComponentEnum.NumberEditQuantity,
-            defaultDisplayUnit='torr'
-        )
-    )
+    cell = SubSection(section_def=MaterialSource, repeats=True)
 
     def normalize(self, archive: 'EntryArchive', logger: 'BoundLogger') -> None:
         super().normalize(archive, logger)
@@ -408,85 +470,11 @@ class SensorDescription(ArchiveSection):
         a_eln=ELNAnnotation(
             properties={
                 'order': [
-                    'name'
-                    'model',
-                    'measurement',
-                    'value'
-                ]
-            }
-        )
-    )
-
-    name = Quantity(
-        type=str,
-        description="Name of the sensor in the chamber",
-        a_eln=ELNAnnotation(
-            component=ELNComponentEnum.StringEditQuantity
-        )
-    )
-
-    model = Quantity(
-        type=str,
-        description="Model of the sensor in the chamber",
-        a_eln=ELNAnnotation(
-            component=ELNComponentEnum.StringEditQuantity
-        )
-    )
-
-    measurement = Quantity(
-        type=str,
-        description="Physical quantity being measured",
-        a_eln=ELNAnnotation(
-            component=ELNComponentEnum.StringEditQuantity
-        )
-    )
-
-    value = Quantity(
-        type=float,
-        description="Nominal value of the signal",
-        unit='',
-        a_eln=ELNAnnotation(
-            component=ELNComponentEnum.NumberEditQuantity,
-            defaultDisplayUnit='mbar'
-        )
-    )
-
-    def normalize(self, archive: 'EntryArchive', logger: 'BoundLogger') -> None:
-        super().normalize(archive, logger)
-
-        # Dynamically assign unit based on measurement type
-        if self.measurement and hasattr(self, 'value') and self.value is not None:
-            try:
-                unit = None
-                m = self.measurement.lower()
-                if m == 'rate_temperature':
-                    unit = 'kelvin'
-                elif m == 'pressure':
-                    unit = 'mbar'
-                elif m == 'emissivity_temperature':
-                    unit = 'percent'
-                elif m == 'reflectivity':
-                    unit == 'percent'
-
-                if unit:
-                    self.value = self.value * ureg(unit)
-                else:
-                    logger.warning(f"Unknown measurement type '{self.measurement}', unit not assigned.")
-            except Exception as e:
-                logger.error(f"Could not assign unit to value: {e}")
-
-# ----------------------------------
-
-class GaugeDescription(ArchiveSection):
-
-    m_def = Section(
-        a_eln=ELNAnnotation(
-            properties={
-                'order': [
                     'name',
                     'model',
                     'measurement',
-                    'value'
+                    'value',
+                    'value_unit'
                 ]
             }
         )
@@ -518,16 +506,40 @@ class GaugeDescription(ArchiveSection):
 
     value = Quantity(
         type=float,
-        unit='mbar',
-        description="Nominal value of the signal",
+        description="Nominal or average value of the signal",
         a_eln=ELNAnnotation(
             component=ELNComponentEnum.NumberEditQuantity,
-            defaultDisplayUnit='mbar'
+        )
+    )
+
+    value_unit = Quantity(
+        type=str,
+        description="Unit of the sensor value (used for interpretation)",
+        a_eln=ELNAnnotation(
+            component=ELNComponentEnum.StringEditQuantity
         )
     )
 
     def normalize(self, archive: 'EntryArchive', logger: 'BoundLogger') -> None:
         super().normalize(archive, logger)
+
+        if self.measurement:
+            m = self.measurement.lower()
+            unit = None
+
+            if m == 'emissivity_temperature':
+                unit = 'celsius'
+            elif m == 'pressure':
+                unit = 'mbar'
+            elif m == 'rate_temperature':
+                unit = 'unitless'
+            elif m == 'reflectivity':
+                unit = 'unitless'
+
+            if unit:
+                self.value_unit = unit
+            else:
+                logger.warning(f"Unknown measurement type '{self.measurement}', no unit assigned.")
 
 # ----------------------------------
 
@@ -539,7 +551,8 @@ class SampleGrowingEnvironment(ArchiveSection):
                 'order': [
                     'model',
                     'type',
-                    'description'
+                    'description',
+                    'program'
                 ]
             }
         )
@@ -547,7 +560,7 @@ class SampleGrowingEnvironment(ArchiveSection):
 
     model = Quantity(
         type=str,
-        description="Model of the growing chamber",
+        description="Model of the growing apparatus",
         a_eln=ELNAnnotation(
             component=ELNComponentEnum.StringEditQuantity
         )
@@ -555,7 +568,7 @@ class SampleGrowingEnvironment(ArchiveSection):
 
     type = Quantity(
         type=str,
-        description="Type of growing chamber",
+        description="Type of growing apparatus",
         a_eln=ELNAnnotation(
             component=ELNComponentEnum.StringEditQuantity
         )
@@ -563,14 +576,21 @@ class SampleGrowingEnvironment(ArchiveSection):
 
     description = Quantity(
         type=str,
-        description="Type of growing chamber",
+        description="Description of the growing apparatus",
+        a_eln=ELNAnnotation(
+            component=ELNComponentEnum.StringEditQuantity
+        )
+    )
+
+    program = Quantity(
+        type=str,
+        description="Program controlling the growth process",
         a_eln=ELNAnnotation(
             component=ELNComponentEnum.StringEditQuantity
         )
     )
 
     cooling_device = SubSection(section_def=CoolingDevice)
-    gauge = SubSection(section_def=GaugeDescription, repeats=True)
     sensor = SubSection(section_def=SensorDescription, repeats=True)
 
     def normalize(self, archive: 'EntryArchive', logger: 'BoundLogger') -> None:
@@ -603,6 +623,7 @@ class SampleRecipe(ArchiveSection):
                 'order': [
                     'name',
                     'thickness',
+                    'type'
                 ]
             }
         )
@@ -626,15 +647,31 @@ class SampleRecipe(ArchiveSection):
         )
     )
 
+    type = Quantity(
+        type=str,
+        description="Type of sample",
+        a_eln=ELNAnnotation(
+            component=ELNComponentEnum.StringEditQuantity
+        )
+    )
+
     substrate = SubSection(section_def=SubstrateDescription)
     layer = SubSection(section_def=LayerDescription, repeats=True)
 
     def normalize(self, archive: 'EntryArchive', logger: 'BoundLogger') -> None:
         super().normalize(archive, logger)
 
+        if self.name and not self.type:
+            # Extracting the sample type from the sample name
+            match = re.match(r'^hm\d+(.*)$', self.name.strip(), re.IGNORECASE)
+            if match:
+                self.type = match.group(1)
+            else:
+                logger.warning(f"Could not extract type from name: {self.name}")
+
 # ----------------------------------
 
-class SampleMBESynthesis(EntryData):
+class MBESynthesis(EntryData):
 
     m_def = Section(
         a_eln=ELNAnnotation(
@@ -702,7 +739,7 @@ class SampleMBESynthesis(EntryData):
     )
 
     user = SubSection(section_def=User, repeats=True)
-    instrument = SubSection(section_def=Instruments, repeats=True)
+    instrument = SubSection(section_def=Instruments)
     sample = SubSection(section_def=SampleRecipe)
 
     def normalize(self, archive: 'EntryArchive', logger: 'BoundLogger') -> None:

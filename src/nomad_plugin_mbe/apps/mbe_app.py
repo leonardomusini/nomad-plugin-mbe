@@ -11,7 +11,7 @@ from nomad.config.models.ui import (
 )
 
 
-dir_mbe = "nomad_plugin_mbe.schema_packages.mbe_schema.SampleMBESynthesis"
+dir_mbe = "nomad_plugin_mbe.schema_packages.mbe_schema.MBESynthesis"
 
 sample_search_app = App(
     label="MBE Sample Search",
@@ -53,6 +53,11 @@ sample_search_app = App(
                             title="Sample Name",
                             type="terms",
                             search_quantity=f"data.sample.name#{dir_mbe}",
+                        ),
+                        MenuItemTerms(
+                            title="Sample Type",
+                            type="terms",
+                            search_quantity=f"data.sample.type#{dir_mbe}",
                         ),
                         MenuItemHistogram(
                             title="Sample Thickness",
@@ -195,7 +200,7 @@ sample_search_app = App(
                 type="custom_quantities",
             ),
             MenuItemVisibility(
-                title="Visibility",
+                title="Visibility Filter",
                 type="visibility"
             ),
         ],
